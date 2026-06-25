@@ -6,7 +6,7 @@ file-based tracking store.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import mlflow
 
@@ -55,9 +55,9 @@ class MLflowTracker:
         predicted_severity: str,
         confidence: float,
         latency_sec: float,
-        retrieved_matches: List[Dict[str, Any]],
-        run_name: Optional[str] = None,
-    ) -> Optional[str]:
+        retrieved_matches: list[dict[str, Any]],
+        run_name: str | None = None,
+    ) -> str | None:
         """Log a single inference prediction as an MLflow run.
 
         Args:

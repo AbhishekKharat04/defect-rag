@@ -16,10 +16,11 @@ the model output.
 """
 
 import base64
+import contextlib
 import logging
 import os
-from typing import Any, Dict, List, Optional
-from PIL import Image
+from typing import Any
+
 import torch
 
 from src.config import settings
@@ -29,15 +30,15 @@ logger = logging.getLogger(__name__)
 class QwenVLGenerator:
     """Wrapper class for generating answers with Qwen2.5-VL using local, API, or mock backend."""
 
-    def __init__(self, mode: Optional[str] = None, token: Optional[str] = None):
+    def __init__(self, mode: str | None = None, token: str | None = None):
         """Initializes the VLM generator.
-        
+
         Args:
             mode: Execution mode ('local', 'api', or 'mock'). If None, infers based on settings/env.
             token: Hugging Face API token for API mode.
         """
         self.token = token or os.getenv("HF_TOKEN")
-        
+
         # Decide mode
         if mode:
             self.mode = mode
@@ -47,16 +48,16 @@ class QwenVLGenerator:
             self.mode = "local"
         else:
             self.mode = "mock"
-            
+
         logger.info(f"Initializing QwenVLGenerator in '{self.mode}' mode...")
-        
+
         self.model = None
         self.processor = None
         self.api_client = None
-        
+
         if self.mode == "local":
             try:
-                from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
+                from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
                 logger.info(f"Loading local model '{settings.QWEN_MODEL_NAME}'...")
                 self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
                     settings.QWEN_MODEL_NAME,
@@ -68,7 +69,7 @@ class QwenVLGenerator:
             except Exception as e:
                 logger.error(f"Failed to load local model: {e}. Switching to mock mode.")
                 self.mode = "mock"
-                
+
         elif self.mode == "api":
             try:
                 from huggingface_hub import InferenceClient
@@ -89,22 +90,22 @@ class QwenVLGenerator:
         self,
         query_image_path: str,
         question: str,
-        retrieved_examples: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        retrieved_examples: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Generates a grounded answer for the query image using retrieved context.
-        
+
         Args:
             query_image_path: Local file path to the user's query image.
             question: Text question asked by the user.
             retrieved_examples: Top-K similar database matches, each containing a payload.
-            
+
         Returns:
             A dictionary containing the generated text response, predicted defect class,
             severity level, confidence estimate, and references.
         """
         if self.mode == "mock":
             return self._generate_mock_response(query_image_path, question, retrieved_examples)
-            
+
         # Construct RAG prompt
         system_instructions = (
             "You are an expert AI system for industrial quality control and defect detection. "
@@ -120,10 +121,10 @@ class QwenVLGenerator:
             "CONFIDENCE: <score 0.0 - 1.0>\n"
             "```"
         )
-        
+
         # Build user prompt content list
         content = [{"type": "text", "text": "Below are the retrieved reference examples from the database:\n\n"}]
-        
+
         # Add retrieved images to the context
         for idx, ex in enumerate(retrieved_examples):
             payload = ex["payload"]
@@ -131,9 +132,9 @@ class QwenVLGenerator:
             ref_path = payload["image_path"]
             label = payload["defect_label"]
             severity = payload["severity"]
-            
+
             content.append({"type": "text", "text": f"--- REFERENCE EXAMPLE {idx + 1} ---\nSimilarity Score: {score:.4f}\nVerified Defect Label: {label}\nVerified Severity: {severity}\n"})
-            
+
             if self.mode == "api":
                 b64_str = self._encode_image_base64(ref_path)
                 content.append({
@@ -145,10 +146,10 @@ class QwenVLGenerator:
                     "type": "image",
                     "image": ref_path
                 })
-                
+
         # Add query image and user question
         content.append({"type": "text", "text": f"\n--- QUERY IMAGE ---\nQuestion: {question}\n\nPlease analyze the query image above, compare it with the reference examples, and provide your assessment."})
-        
+
         if self.mode == "api":
             b64_str = self._encode_image_base64(query_image_path)
             content.append({
@@ -178,14 +179,14 @@ class QwenVLGenerator:
             except Exception as e:
                 logger.error(f"HF Inference API call failed: {e}. Falling back to mock response.")
                 return self._generate_mock_response(query_image_path, question, retrieved_examples)
-                
+
         else:  # local mode
             try:
                 from qwen_vl_utils import process_vision_info
-                
+
                 text_prompt = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
                 image_inputs, video_inputs = process_vision_info(messages)
-                
+
                 inputs = self.processor(
                     text=[text_prompt],
                     images=image_inputs,
@@ -193,27 +194,27 @@ class QwenVLGenerator:
                     padding=True,
                     return_tensors="pt"
                 ).to(settings.DEVICE)
-                
+
                 with torch.no_grad():
                     generated_ids = self.model.generate(**inputs, max_new_tokens=600)
                     generated_ids_trimmed = [
-                        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids, strict=False)
                     ]
                     answer_text = self.processor.batch_decode(
                         generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
                     )[0]
-                    
+
                 return self._parse_structured_response(answer_text, retrieved_examples)
             except Exception as e:
                 logger.error(f"Local VLM execution failed: {e}. Falling back to mock response.")
                 return self._generate_mock_response(query_image_path, question, retrieved_examples)
 
-    def _parse_structured_response(self, text: str, retrieved_examples: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _parse_structured_response(self, text: str, retrieved_examples: list[dict[str, Any]]) -> dict[str, Any]:
         """Parses the text and metadata blocks from the VLM output."""
         defect_label = "unknown"
         severity = "unknown"
         confidence = 0.5
-        
+
         # Simple string scanning for metadata blocks
         lines = text.split("\n")
         for line in lines:
@@ -222,11 +223,9 @@ class QwenVLGenerator:
             elif "SEVERITY:" in line:
                 severity = line.split("SEVERITY:")[1].strip().lower()
             elif "CONFIDENCE:" in line:
-                try:
+                with contextlib.suppress(ValueError):
                     confidence = float(line.split("CONFIDENCE:")[1].strip())
-                except ValueError:
-                    pass
-                    
+
         return {
             "answer": text,
             "predicted_defect": defect_label,
@@ -239,15 +238,15 @@ class QwenVLGenerator:
         self,
         query_image_path: str,
         question: str,
-        retrieved_examples: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        retrieved_examples: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """Generates a high-quality simulated response when running offline or on low compute."""
         logger.info("Generating mock VLM response based on path and retrieved metadata...")
-        
+
         # 1. Infer query defect class based on path or retrieved top match
         filename = os.path.basename(query_image_path).lower()
         parent_folder = os.path.basename(os.path.dirname(query_image_path)).lower()
-        
+
         inferred_defect = "good"
         for label in ["broken_large", "broken_small", "scratch", "contamination", "broken", "dent", "hole"]:
             if label in filename or label in parent_folder:
@@ -262,14 +261,14 @@ class QwenVLGenerator:
             inferred_defect = "broken_small"
         elif inferred_defect == "broken":
             inferred_defect = "broken_large"
-                
+
         severity = "none"
         if inferred_defect != "good" and inferred_defect != "no defect detected":
             if inferred_defect in ["broken_large", "hole"]:
                 severity = "high"
             else:
                 severity = "medium"
-                
+
         # 2. Build detailed narrative matching the inferred defect
         if inferred_defect in ("good", "no defect detected"):
             inferred_defect = "no defect detected"
@@ -294,7 +293,7 @@ class QwenVLGenerator:
             for idx, ex in enumerate(retrieved_examples):
                 payload = ex["payload"]
                 narrative += f"- Reference {idx+1}: A verified '{payload['defect_label']}' defect (Severity: {payload['severity']}, Similarity: {ex['score']:.4f}).\n"
-            
+
             narrative += (
                 f"\nDue to the visual similarity to reference examples with label '{inferred_defect}', "
                 f"the query object is flagged as NON-CONFORMING. The estimated defect severity is **{severity.upper()}**."
@@ -309,7 +308,7 @@ class QwenVLGenerator:
             f"CONFIDENCE: {confidence:.2f}\n"
             f"```"
         )
-        
+
         return {
             "answer": full_text,
             "predicted_defect": inferred_defect,

@@ -22,11 +22,8 @@ pipeline is agnostic to the data source::
 """
 
 import logging
-import os
-import tarfile
 from pathlib import Path
 
-import numpy as np
 from PIL import Image, ImageDraw
 
 from src.config import settings
@@ -62,12 +59,12 @@ def download_mvtec_category(category: str = "bottle", target_dir: Path | None = 
         logger.warning(f"Category '{category}' is not supported for mirror download. Falling back to synthetic.")
         return generate_synthetic_dataset(category, dest_dir)
 
-    import urllib.request
     import urllib.parse
+    import urllib.request
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     logger.info("Starting parallel MVTec AD bottle dataset download from HF mirror...")
-    
+
     TRAIN_BASE_URL = "https://huggingface.co/datasets/Mahinur/mvtec-bottle/resolve/main"
     TEST_BASE_URL = "https://huggingface.co/datasets/Mahinur/mvtec-bottle-v2/resolve/main"
 

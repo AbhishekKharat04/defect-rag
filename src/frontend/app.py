@@ -10,8 +10,9 @@ Provides a browser-based UI at ``http://localhost:7860`` with:
 
 import logging
 import os
-import requests
+
 import gradio as gr
+import requests
 
 from src.config import settings
 
@@ -23,24 +24,24 @@ def run_rag(image_path, question, top_k):
     """Calls the backend API to retrieve visual context and generate grounded answer."""
     if not image_path:
         return "Please upload an image.", "unknown", "unknown", 0.0, []
-        
+
     url = f"{settings.BACKEND_URL}/query"
-    
+
     try:
         # Open and prepare file for post upload
         with open(image_path, "rb") as f:
             files = {"file": (os.path.basename(image_path), f, "image/png")}
             data = {"question": question, "top_k": int(top_k)}
-            
+
             logger.info(f"Sending RAG query to backend: {url}")
             response = requests.post(url, files=files, data=data)
-            
+
         if response.status_code != 200:
             error_detail = response.json().get("detail", "Unknown error")
             return f"Error from backend API: {error_detail}", "error", "error", 0.0, []
-            
+
         res = response.json()
-        
+
         # Prepare retrieved gallery matches
         # Each item in gallery should be a tuple (image_path/URL, caption)
         gallery_items = []
@@ -50,13 +51,13 @@ def run_rag(image_path, question, top_k):
             defect = payload.get("defect_label")
             severity = payload.get("severity")
             score = match.get("score")
-            
+
             caption = f"Match {idx+1} | Sim: {score:.4f}\nDefect: {defect} | Severity: {severity}"
             if os.path.exists(path):
                 gallery_items.append((path, caption))
             else:
                 logger.warning(f"Retrieved image path does not exist locally: {path}")
-                
+
         return (
             res.get("answer"),
             res.get("predicted_defect", "unknown"),
@@ -72,15 +73,15 @@ def trigger_indexing(category, synthetic, recreate):
     """Calls the backend API to index the selected dataset category."""
     url = f"{settings.BACKEND_URL}/index/dataset"
     params = {"category": category, "synthetic": bool(synthetic), "recreate": bool(recreate)}
-    
+
     try:
         logger.info(f"Triggering database indexing: {url} with params {params}")
         response = requests.post(url, params=params)
-        
+
         if response.status_code != 200:
             error_detail = response.json().get("detail", "Unknown error")
             return f"Indexing failed: {error_detail}"
-            
+
         res = response.json()
         col_info = res.get("collection_info", {})
         return (
@@ -213,25 +214,25 @@ with gr.Blocks(theme=theme, css=css, title="Industrial Defect RAG Assistant") as
         ### Multimodal Retrieval-Augmented Generation for Industrial Inspection and Quality Control
         """
     )
-    
+
     with gr.Row():
         # --- LEFT COLUMN (Control Panel) ---
         with gr.Column(scale=4, elem_classes=["dashboard-panel"]):
             gr.Markdown("### ⚙️ Inspection Configuration")
-            
+
             query_image = gr.Image(
                 label="Upload Part Photo",
                 type="filepath",
                 sources=["upload", "clipboard"]
             )
-            
+
             question_input = gr.Textbox(
                 label="Verification Request",
                 value="Identify the defect in this image, explain why you classified it this way, and rate the defect severity.",
                 placeholder="Ask a question about the part...",
                 lines=3
             )
-            
+
             top_k_slider = gr.Slider(
                 label="Retrieve Reference Examples (Top-K)",
                 minimum=1,
@@ -239,9 +240,9 @@ with gr.Blocks(theme=theme, css=css, title="Industrial Defect RAG Assistant") as
                 value=3,
                 step=1
             )
-            
+
             submit_btn = gr.Button("⚡ Analyze Part", variant="primary", elem_id="analyze-btn")
-            
+
             # Indexing Panel (Accordion)
             with gr.Accordion("📦 Database Indexing Controls", open=False, elem_id="indexing-accordion"):
                 gr.Markdown("Initialize or rebuild the visual search knowledge base.")
@@ -260,23 +261,23 @@ with gr.Blocks(theme=theme, css=css, title="Industrial Defect RAG Assistant") as
                 )
                 index_btn = gr.Button("Index Dataset Category", variant="secondary")
                 index_output = gr.Textbox(label="Indexing Status", interactive=False)
-                
+
         # --- RIGHT COLUMN (Inspection Results) ---
         with gr.Column(scale=6, elem_classes=["dashboard-panel"]):
             gr.Markdown("### 📋 Inspection Decision & Grounding Report")
-            
+
             # Tag cards
             with gr.Row():
                 defect_card = gr.Textbox(label="Predicted Defect Type", interactive=False, elem_classes=["kpi-card", "defect-kpi"])
                 severity_card = gr.Textbox(label="Severity Level", interactive=False, elem_classes=["kpi-card", "severity-kpi"])
                 confidence_card = gr.Number(label="Confidence Score", interactive=False, elem_classes=["kpi-card", "confidence-kpi"])
-                
+
             # Grounding explanation
             answer_markdown = gr.Markdown(
                 value="*Results will appear here after clicking 'Analyze Part'...*",
                 line_breaks=True
             )
-            
+
             gr.Markdown("### 🖼️ Retrieved Visual Database References")
             retrieved_gallery = gr.Gallery(
                 label="Nearest Visual Neighbors (Qdrant Database Matches)",
@@ -292,7 +293,7 @@ with gr.Blocks(theme=theme, css=css, title="Industrial Defect RAG Assistant") as
         inputs=[query_image, question_input, top_k_slider],
         outputs=[answer_markdown, defect_card, severity_card, confidence_card, retrieved_gallery]
     )
-    
+
     index_btn.click(
         fn=trigger_indexing,
         inputs=[category_dropdown, synthetic_checkbox, recreate_checkbox],

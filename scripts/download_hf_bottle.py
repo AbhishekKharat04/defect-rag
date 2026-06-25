@@ -1,9 +1,8 @@
-import os
-import urllib.request
-import urllib.parse
-from pathlib import Path
 import logging
+import urllib.parse
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("download_hf_bottle")
@@ -29,9 +28,9 @@ def download_file(url: str, dest_path: Path):
 
 def main():
     logger.info("Starting parallel MVTec AD bottle dataset reconstruction from Hugging Face...")
-    
+
     download_tasks = []
-    
+
     # 1. Train Good split (209 images)
     train_good_dir = DATA_DIR / "train" / "good"
     for i in range(209):
@@ -39,7 +38,7 @@ def main():
         url = f"{TRAIN_BASE_URL}/{filename}"
         dest = train_good_dir / filename
         download_tasks.append((url, dest))
-            
+
     # 2. Test Good split (20 images)
     test_good_dir = DATA_DIR / "test" / "good"
     for i in range(20):
@@ -74,10 +73,10 @@ def main():
         url = f"{TEST_BASE_URL}/{urllib.parse.quote(src_name)}"
         dest = test_broken_dir / dest_name
         download_tasks.append((url, dest))
-    
+
     total_files = len(download_tasks)
     logger.info(f"Total files to download: {total_files}")
-    
+
     # Use ThreadPoolExecutor to download in parallel
     max_workers = 16
     completed_count = 0

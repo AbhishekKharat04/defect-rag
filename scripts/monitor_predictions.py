@@ -1,8 +1,6 @@
 import argparse
 import json
-import os
 from pathlib import Path
-from typing import Dict, List
 
 # Setup path
 DEFAULT_LOG_FILE = Path(__file__).resolve().parent.parent / "logs" / "predictions.jsonl"
@@ -11,7 +9,7 @@ def build_ascii_bar(val: int, max_val: int, width: int = 30) -> str:
     """Builds a visual ASCII bar chart representation."""
     if max_val == 0:
         return ""
-    fill_len = int(round(val * width / max_val))
+    fill_len = round(val * width / max_val)
     bar = "#" * fill_len + "-" * (width - fill_len)
     return bar
 
@@ -22,9 +20,9 @@ def analyze_logs(log_path: Path, alert_threshold: float = 0.70):
         print("[*] Perform some RAG queries first to populate the prediction log.")
         return
 
-    queries: List[Dict] = []
+    queries: list[dict] = []
     try:
-        with open(log_path, "r") as f:
+        with open(log_path) as f:
             for line in f:
                 if line.strip():
                     queries.append(json.loads(line))
@@ -40,22 +38,22 @@ def analyze_logs(log_path: Path, alert_threshold: float = 0.70):
     # 1. Aggregates
     latencies = [q["latency_sec"] for q in queries]
     confidences = [q["confidence"] for q in queries]
-    
+
     avg_latency = sum(latencies) / total_queries
     avg_confidence = sum(confidences) / total_queries
-    
+
     # 2. Alerts on low confidence
     low_confidence_queries = [q for q in queries if q["confidence"] < alert_threshold]
     alert_count = len(low_confidence_queries)
 
     # 3. Defect & Severity Distributions
-    defect_counts: Dict[str, int] = {}
-    severity_counts: Dict[str, int] = {}
-    
+    defect_counts: dict[str, int] = {}
+    severity_counts: dict[str, int] = {}
+
     for q in queries:
         defect = q.get("predicted_defect", "unknown")
         severity = q.get("predicted_severity", "unknown")
-        
+
         defect_counts[defect] = defect_counts.get(defect, 0) + 1
         severity_counts[severity] = severity_counts.get(severity, 0) + 1
 
@@ -67,7 +65,7 @@ def analyze_logs(log_path: Path, alert_threshold: float = 0.70):
     print(f" Average Inference Latency : {avg_latency:.4f} seconds")
     print(f" Average VLM Confidence    : {avg_confidence:.2%} (Target: >85%)")
     print("-" * 60)
-    
+
     # Alert notifications
     if alert_count > 0:
         print(f" [ALERT] Low Confidence Alerts (< {alert_threshold:.0%}) : {alert_count} / {total_queries} queries!")
@@ -84,7 +82,7 @@ def analyze_logs(log_path: Path, alert_threshold: float = 0.70):
         bar = build_ascii_bar(count, max_defect)
         percentage = count / total_queries
         print(f"   {defect:<15} : {count:>3} ({percentage:>6.1%}) | {bar}")
-        
+
     print("-" * 60)
     # Severity distribution
     print(" Severity Level Distribution:")
@@ -93,7 +91,7 @@ def analyze_logs(log_path: Path, alert_threshold: float = 0.70):
         bar = build_ascii_bar(count, max_severity)
         percentage = count / total_queries
         print(f"   {severity:<15} : {count:>3} ({percentage:>6.1%}) | {bar}")
-        
+
     print("=" * 60)
 
 def main():

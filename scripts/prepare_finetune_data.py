@@ -10,6 +10,7 @@ logger = logging.getLogger("prepare_data")
 
 from src.config import settings
 
+
 def prepare_finetune_dataset(dataset_dir: Path, output_file: Path):
     """Walks the dataset folder and creates standard Qwen-VL chat data."""
     if not dataset_dir.exists():
@@ -21,19 +22,19 @@ def prepare_finetune_dataset(dataset_dir: Path, output_file: Path):
     index = 0
 
     # Walk dataset directory
-    for root, dirs, files in os.walk(dataset_dir):
+    for root, _dirs, files in os.walk(dataset_dir):
         for file in files:
             if file.lower().endswith((".png", ".jpg", ".jpeg")):
                 full_path = Path(root) / file
-                
+
                 # Deduce split and label from path
                 relative_path = full_path.relative_to(dataset_dir)
                 parts = relative_path.parts
-                
+
                 if len(parts) >= 2:
-                    split = parts[0]          # 'train' or 'test'
+                    parts[0]          # 'train' or 'test'
                     defect_label = parts[1]   # 'good', 'scratch', 'broken', etc.
-                    
+
                     # Deduce severity
                     if defect_label == "good":
                         severity = "none"
@@ -77,7 +78,7 @@ def prepare_finetune_dataset(dataset_dir: Path, output_file: Path):
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(dialogues, f, indent=2, ensure_ascii=False)
-        
+
     logger.info(f"Prepared {len(dialogues)} instruction dialogue entries. Saved to: {output_file}")
 
 def main():

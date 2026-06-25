@@ -9,14 +9,11 @@ Provides:
 """
 
 import io
-import os
-from typing import Generator
+from collections.abc import Generator
 
-import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
-
 
 # ---------------------------------------------------------------------------
 # Synthetic image helpers

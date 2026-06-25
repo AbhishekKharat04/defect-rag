@@ -100,6 +100,10 @@ ignore = [
     "E501",   # line too long (handled by formatter)
     "B008",   # do not perform function calls in argument defaults (needed for FastAPI Depends)
     "SIM108", # use ternary operator (sometimes less readable)
+    "E402",   # module level import not at top of file
+    "B904",   # within except clause, raise from
+    "RUF001", # ambiguous unicode character
+    "RUF002", # docstring contains ambiguous unicode character
 ]
 
 [tool.ruff.lint.isort]

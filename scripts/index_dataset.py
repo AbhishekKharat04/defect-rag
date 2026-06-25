@@ -2,8 +2,8 @@ import argparse
 import logging
 import os
 from pathlib import Path
+
 from PIL import Image
-import numpy as np
 
 # Set up logging before other imports
 logging.basicConfig(
@@ -14,8 +14,9 @@ logger = logging.getLogger("index_dataset")
 
 from src.config import settings
 from src.embeddings.clip_encoder import CLIPEncoder
-from src.vector_db.qdrant_client import QdrantDBClient
 from src.utils.data_loader import download_mvtec_category, generate_synthetic_dataset
+from src.vector_db.qdrant_client import QdrantDBClient
+
 
 def main():
     parser = argparse.ArgumentParser(description="Download and index industrial defect dataset into Qdrant.")
@@ -30,13 +31,13 @@ def main():
         dataset_path = generate_synthetic_dataset(category=args.category)
     else:
         dataset_path = download_mvtec_category(category=args.category)
-        
+
     logger.info(f"Dataset path resolved: {dataset_path}")
 
     # 2. Initialize CLIP Encoder & Qdrant Client
     encoder = CLIPEncoder()
     qdrant = QdrantDBClient()
-    
+
     # 3. Create Qdrant Collection
     qdrant.create_collection(
         collection_name=settings.QDRANT_COLLECTION,
@@ -47,19 +48,19 @@ def main():
     # 4. Scan files and compile paths & metadata
     image_paths = []
     metadata_list = []
-    
+
     # Walk through the dataset directory structure: <category>/<split>/<defect_label>/<filename>
-    for root, dirs, files in os.walk(dataset_path):
+    for root, _dirs, files in os.walk(dataset_path):
         for file in files:
             if file.lower().endswith((".png", ".jpg", ".jpeg")):
                 full_path = Path(root) / file
-                
+
                 # Parse structure
                 parts = full_path.relative_to(dataset_path).parts
                 if len(parts) >= 2:
                     split = parts[0]          # 'train' or 'test'
                     defect_label = parts[1]   # 'good', 'scratch', 'broken', etc.
-                    
+
                     # Estimate severity based on defect label
                     if defect_label == "good":
                         severity = "none"
@@ -67,7 +68,7 @@ def main():
                         severity = "high"
                     else:
                         severity = "medium"
-                        
+
                     image_paths.append(full_path)
                     metadata_list.append({
                         "image_path": str(full_path.resolve()),
@@ -88,7 +89,7 @@ def main():
     for i in range(0, total_images, args.batch_size):
         batch_paths = image_paths[i : i + args.batch_size]
         batch_metadata = metadata_list[i : i + args.batch_size]
-        
+
         # Load images
         images = []
         valid_indices = []
@@ -99,18 +100,18 @@ def main():
                 valid_indices.append(idx)
             except Exception as e:
                 logger.error(f"Error opening image {path}: {e}")
-                
+
         if not images:
             continue
-            
+
         # Filter metadata for successfully opened images
         batch_metadata_filtered = [batch_metadata[idx] for idx in valid_indices]
-        
+
         try:
             # Encode images
             logger.info(f"Encoding batch {i//args.batch_size + 1} ({len(images)} images)...")
             embeddings = encoder.encode_images(images, batch_size=args.batch_size)
-            
+
             # Upsert into Qdrant
             qdrant.upsert_images(
                 embeddings=embeddings,

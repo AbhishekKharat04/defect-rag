@@ -12,11 +12,10 @@ Key design choices:
 
 import asyncio
 import logging
-from typing import List, Optional
 
 import numpy as np
-from PIL import Image
 import torch
+from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
 from src.config import settings
@@ -34,7 +33,7 @@ class CLIPEncoder:
         model: HuggingFace CLIPModel loaded in eval mode.
     """
 
-    def __init__(self, model_name: Optional[str] = None, device: Optional[str] = None) -> None:
+    def __init__(self, model_name: str | None = None, device: str | None = None) -> None:
         """Initialise the CLIP model, processor, and run a warm-up pass.
 
         Args:
@@ -68,7 +67,7 @@ class CLIPEncoder:
     # Public API
     # ------------------------------------------------------------------
 
-    def encode_images(self, images: List[Image.Image], batch_size: int = 16) -> np.ndarray:
+    def encode_images(self, images: list[Image.Image], batch_size: int = 16) -> np.ndarray:
         """Encode a list of PIL images into normalised embedding vectors.
 
         Images are processed in batches to prevent GPU out-of-memory errors
@@ -89,7 +88,7 @@ class CLIPEncoder:
         if not images:
             return np.empty((0, 512), dtype=np.float32)
 
-        embeddings_list: List[np.ndarray] = []
+        embeddings_list: list[np.ndarray] = []
 
         for i in range(0, len(images), batch_size):
             batch = images[i : i + batch_size]
@@ -154,7 +153,7 @@ class CLIPEncoder:
         """
         return await asyncio.to_thread(self.encode_image, image)
 
-    async def encode_images_async(self, images: List[Image.Image], batch_size: int = 16) -> np.ndarray:
+    async def encode_images_async(self, images: list[Image.Image], batch_size: int = 16) -> np.ndarray:
         """Non-blocking version of :meth:`encode_images`.
 
         Args:

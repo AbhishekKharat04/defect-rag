@@ -1,31 +1,31 @@
 import argparse
 import logging
-import time
 import os
+import time
 from pathlib import Path
-import torch
-from PIL import Image
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("evaluate")
 
-from src.config import settings
 import mlflow
+
+from src.config import settings
 from src.vlm.qwen_generator import QwenVLGenerator
+
 
 def run_evaluation(data_dir: Path, adapter_path: Path):
     """Evaluates baseline vs. fine-tuned VLM on test split images."""
     # 1. Collect test images and labels
     logger.info(f"Scanning test dataset in {data_dir}...")
     test_samples = []
-    
+
     test_dir = data_dir / "test"
     if not test_dir.exists():
         logger.error(f"Test directory not found: {test_dir}. Please run data loader/synthetic builder first.")
         return
 
-    for root, dirs, files in os.walk(test_dir):
+    for root, _dirs, files in os.walk(test_dir):
         for file in files:
             if file.lower().endswith((".png", ".jpg", ".jpeg")):
                 full_path = Path(root) / file
@@ -46,14 +46,14 @@ def run_evaluation(data_dir: Path, adapter_path: Path):
     # We will use mock/api mode if cuda is not available
     logger.info("Initializing baseline generator...")
     baseline_generator = QwenVLGenerator()
-    
+
     # 3. Instantiate Fine-Tuned Generator
     logger.info("Initializing fine-tuned generator...")
     # For fine-tuning evaluation, if adapters exist and we are in local/gpu mode, load them.
-    # Otherwise, the generator can run in a simulated 'fine-tuned' state (by passing a flag) 
+    # Otherwise, the generator can run in a simulated 'fine-tuned' state (by passing a flag)
     # which mimics having LoRA weights that are 100% correct, showcasing the evaluation flow.
     adapters_exist = adapter_path.exists() and any(adapter_path.iterdir())
-    
+
     if adapters_exist and settings.DEVICE == "cuda":
         # Load local model with adapters
         logger.info(f"Loading local base model and merging LoRA adapters from {adapter_path}...")
@@ -82,23 +82,23 @@ def run_evaluation(data_dir: Path, adapter_path: Path):
     # 4. Evaluation Loop
     baseline_correct = 0
     finetuned_correct = 0
-    
+
     baseline_latencies = []
     finetuned_latencies = []
-    
+
     baseline_confidences = []
     finetuned_confidences = []
 
     logger.info("Starting evaluation queries...")
-    
+
     # Define a standard QA question
     question = "Analyze this manufactured part image for quality control. Is it defective? If yes, what is the defect type and its severity level?"
-    
+
     for idx, sample in enumerate(test_samples):
         img_path = sample["path"]
         ground_truth = sample["label"]
-        
-        # We pass a dummy empty retrieved list to evaluate pure VLM performance 
+
+        # We pass a dummy empty retrieved list to evaluate pure VLM performance
         # (baseline visual dialogue vs fine-tuned visual dialogue)
         dummy_retrieval = []
 
@@ -106,10 +106,10 @@ def run_evaluation(data_dir: Path, adapter_path: Path):
         start = time.time()
         res_base = baseline_generator.generate_answer(img_path, question, dummy_retrieval)
         latency_base = time.time() - start
-        
+
         baseline_latencies.append(latency_base)
         baseline_confidences.append(res_base["confidence"])
-        
+
         # Check correctness
         is_base_correct = (res_base["predicted_defect"] == ground_truth) or (
             res_base["predicted_defect"] == "no defect detected" and ground_truth == "good"
@@ -120,35 +120,35 @@ def run_evaluation(data_dir: Path, adapter_path: Path):
         # --- B. Fine-Tuned Inference ---
         start = time.time()
         res_fine = finetuned_generator.generate_answer(img_path, question, dummy_retrieval)
-        
+
         # If running in simulation mock mode, simulate a highly confident, accurate fine-tuned model
         if finetuned_generator.mode == "mock":
             # Set to 100% correct and high confidence (>90%)
             res_fine["predicted_defect"] = ground_truth
             res_fine["confidence"] = 0.94 + (idx % 3) * 0.02
             # Simulate faster inference due to visual indexing learning/specialization
-            latency_fine = latency_base * 0.9  
+            latency_fine = latency_base * 0.9
         else:
             latency_fine = time.time() - start
-            
+
         finetuned_latencies.append(latency_fine)
         finetuned_confidences.append(res_fine["confidence"])
-        
+
         is_fine_correct = (res_fine["predicted_defect"] == ground_truth) or (
             res_fine["predicted_defect"] == "no defect detected" and ground_truth == "good"
         )
         if is_fine_correct:
             finetuned_correct += 1
-            
+
         logger.info(f"[{idx+1}/{total_samples}] File: {Path(img_path).name} | Ground Truth: {ground_truth} | Baseline Pred: {res_base['predicted_defect']} ({is_base_correct}) | Fine-Tuned Pred: {res_fine['predicted_defect']} ({is_fine_correct})")
 
     # 5. Compile Metrics
     base_acc = baseline_correct / total_samples
     fine_acc = finetuned_correct / total_samples
-    
+
     avg_lat_base = sum(baseline_latencies) / total_samples
     avg_lat_fine = sum(finetuned_latencies) / total_samples
-    
+
     avg_conf_base = sum(baseline_confidences) / total_samples
     avg_conf_fine = sum(finetuned_confidences) / total_samples
 
@@ -161,7 +161,7 @@ def run_evaluation(data_dir: Path, adapter_path: Path):
                 "dataset_size": total_samples,
                 "has_adapters": adapters_exist
             })
-            
+
             mlflow.log_metrics({
                 "baseline_accuracy": base_acc,
                 "finetuned_accuracy": fine_acc,

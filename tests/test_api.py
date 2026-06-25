@@ -7,11 +7,7 @@ validation, CORS headers, and operational metrics.
 
 import io
 
-import pytest
-from PIL import Image
-
 from tests.conftest import _make_png_bytes
-
 
 # =========================================================================
 # /health
@@ -243,7 +239,6 @@ class TestRAGBaselinesAndThresholds:
 
     def test_good_part_baseline(self, seeded_test_client):
         """Uploading a conforming (good) part returns 'no defect detected'."""
-        import os
         from pathlib import Path
         img_path = Path("data/bottle/train/good/000.png")
         if not img_path.exists():
@@ -268,7 +263,6 @@ class TestRAGBaselinesAndThresholds:
 
     def test_broken_part_baseline(self, seeded_test_client):
         """Uploading a clearly broken part returns the correct defect type 'broken_large'."""
-        import os
         from pathlib import Path
         img_path = Path("data/bottle/test/broken_large/000.png")
         if not img_path.exists():

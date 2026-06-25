@@ -18,7 +18,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,7 +69,7 @@ class QdrantStatusModel(BaseModel):
     """Nested model describing Qdrant connection state."""
 
     status: str = Field(..., description="Connection status string.")
-    collection_info: Optional[Dict[str, Any]] = Field(
+    collection_info: dict[str, Any] | None = Field(
         None, description="Collection metadata (points count, status)."
     )
 
@@ -91,8 +91,8 @@ class RetrievedMatchPayload(BaseModel):
     image_path: str
     defect_label: str = "unknown"
     severity: str = "unknown"
-    category: Optional[str] = None
-    split: Optional[str] = None
+    category: str | None = None
+    split: str | None = None
 
 
 class RetrievedMatch(BaseModel):
@@ -111,7 +111,7 @@ class QueryResponse(BaseModel):
     predicted_defect: str = Field(..., description="Predicted defect class label.")
     predicted_severity: str = Field(..., description="Predicted severity level.")
     confidence: float = Field(..., ge=0.0, le=1.0, description="VLM confidence score.")
-    retrieved_matches: List[Dict[str, Any]] = Field(
+    retrieved_matches: list[dict[str, Any]] = Field(
         default_factory=list, description="Top-K visual reference matches."
     )
 
@@ -121,7 +121,7 @@ class IndexResponse(BaseModel):
 
     status: str
     message: str
-    collection_info: Optional[Dict[str, Any]] = None
+    collection_info: dict[str, Any] | None = None
 
 
 class MetricsResponse(BaseModel):
@@ -130,7 +130,7 @@ class MetricsResponse(BaseModel):
     uptime_seconds: float
     total_queries: int
     total_index_requests: int
-    average_query_latency_seconds: Optional[float]
+    average_query_latency_seconds: float | None
 
 
 class ErrorResponse(BaseModel):
@@ -143,16 +143,16 @@ class ErrorResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Application state
 # ---------------------------------------------------------------------------
-encoder: Optional[CLIPEncoder] = None
-qdrant: Optional[QdrantDBClient] = None
-vlm: Optional[QwenVLGenerator] = None
-tracker: Optional[MLflowTracker] = None
+encoder: CLIPEncoder | None = None
+qdrant: QdrantDBClient | None = None
+vlm: QwenVLGenerator | None = None
+tracker: MLflowTracker | None = None
 
 # Operational counters
 _start_time: float = 0.0
 _total_queries: int = 0
 _total_index_requests: int = 0
-_query_latencies: List[float] = []
+_query_latencies: list[float] = []
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +239,7 @@ class _RequestIDFilter(logging.Filter):
         super().__init__()
         self.request_id = request_id
 
-    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+    def filter(self, record: logging.LogRecord) -> bool:
         record.request_id = self.request_id  # type: ignore[attr-defined]
         return True
 
@@ -296,7 +296,7 @@ def _log_prediction(
     severity: str,
     confidence: float,
     latency: float,
-    matches: List[Dict[str, Any]],
+    matches: list[dict[str, Any]],
 ) -> None:
     """Append a prediction record to the local JSONL audit log."""
     log_entry = {
@@ -331,7 +331,7 @@ def _log_prediction(
 async def health_check() -> HealthResponse:
     """Check the health of the API and Qdrant connection."""
     qdrant_status = "disconnected"
-    qdrant_info: Optional[Dict[str, Any]] = None
+    qdrant_info: dict[str, Any] | None = None
 
     if qdrant is not None:
         try:
@@ -353,7 +353,7 @@ async def health_check() -> HealthResponse:
 @app.get("/metrics", response_model=MetricsResponse, tags=["System"])
 async def get_metrics() -> MetricsResponse:
     """Return operational metrics for monitoring dashboards."""
-    avg_latency: Optional[float] = None
+    avg_latency: float | None = None
     if _query_latencies:
         avg_latency = sum(_query_latencies) / len(_query_latencies)
 
@@ -394,8 +394,8 @@ async def index_dataset(
     )
 
     # 3. Read image paths and metadata
-    image_paths: List[Path] = []
-    metadata_list: List[Dict[str, Any]] = []
+    image_paths: list[Path] = []
+    metadata_list: list[dict[str, Any]] = []
 
     for root, _dirs, files in os.walk(data_path):
         for file in files:
@@ -433,8 +433,8 @@ async def index_dataset(
         batch_paths = image_paths[i : i + batch_size]
         batch_meta = metadata_list[i : i + batch_size]
 
-        images: List[Image.Image] = []
-        valid_indices: List[int] = []
+        images: list[Image.Image] = []
+        valid_indices: list[int] = []
         for idx, path in enumerate(batch_paths):
             try:
                 img = Image.open(path).convert("RGB")

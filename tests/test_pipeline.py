@@ -40,13 +40,13 @@ def vlm_generator() -> QwenVLGenerator:
 async def test_async_encode_matches_sync(encoder: CLIPEncoder):
     """Verifies that async image encoding produces identical vectors to sync encoding."""
     img = Image.new("RGB", (100, 100), color="blue")
-    
+
     # Sync encoding
     sync_features = encoder.encode_image(img)
-    
+
     # Async encoding
     async_features = await encoder.encode_image_async(img)
-    
+
     # Check shape, type, and similarity
     assert sync_features.shape == (512,)
     assert async_features.shape == (512,)
@@ -67,21 +67,21 @@ def test_embed_index_search_generate(
 ):
     """Simulates the entire RAG pipeline from PIL image to structured VLM answer."""
     col_name = "test_pipeline_defects"
-    
+
     # 1. Setup the collection
     success = qdrant_client.create_collection(collection_name=col_name, vector_size=512, recreate=True)
     assert success is True
-    
+
     # 2. Embed and Index a synthetic image (e.g., a broken_small defect)
     img_broken_small = Image.new("RGB", (100, 100), color="red")
     embedding = encoder.encode_image(img_broken_small)
-    
+
     metadata = {
         "image_path": "/tmp/synthetic_broken_small.png",
         "defect_label": "broken_small",
         "severity": "medium",
     }
-    
+
     upsert_ok = qdrant_client.upsert_images(
         embeddings=np.expand_dims(embedding, axis=0),
         metadata_list=[metadata],
@@ -89,7 +89,7 @@ def test_embed_index_search_generate(
         collection_name=col_name,
     )
     assert upsert_ok is True
-    
+
     # 3. Search using the same vector (should return the exact same image as nearest neighbor)
     results = qdrant_client.search_similar(
         query_vector=embedding,
@@ -99,14 +99,14 @@ def test_embed_index_search_generate(
     assert len(results) == 1
     assert results[0]["id"] == 12345
     assert results[0]["payload"]["defect_label"] == "broken_small"
-    
+
     # 4. Generate structured VLM answer based on retrieved source
     response = vlm_generator.generate_answer(
         query_image_path="/tmp/query_bottle.png",
         question="Is there a defect? Rate the severity.",
         retrieved_examples=results,
     )
-    
+
     # Assert response contains required schema keys
     assert "answer" in response
     assert response["predicted_defect"] == "broken_small"

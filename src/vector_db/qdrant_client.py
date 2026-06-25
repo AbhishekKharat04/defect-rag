@@ -9,8 +9,8 @@ Provides a high-level API over the ``qdrant-client`` SDK for:
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Union
 import uuid
+from typing import Any
 
 import numpy as np
 from qdrant_client import QdrantClient
@@ -43,10 +43,10 @@ class QdrantDBClient:
 
     def __init__(
         self,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        location: Optional[str] = None,
-        path: Optional[str] = None,
+        host: str | None = None,
+        port: int | None = None,
+        location: str | None = None,
+        path: str | None = None,
     ) -> None:
         """Initialise connection to Qdrant.
 
@@ -60,8 +60,8 @@ class QdrantDBClient:
         """
         self.host: str = host or settings.QDRANT_HOST
         self.port: int = port or settings.QDRANT_PORT
-        self.location: Optional[str] = location
-        self.path: Optional[str] = path
+        self.location: str | None = location
+        self.path: str | None = path
 
         if self.location == ":memory:" or self.host == ":memory:":
             logger.info("Initializing in-memory Qdrant Client...")
@@ -89,7 +89,7 @@ class QdrantDBClient:
 
     def create_collection(
         self,
-        collection_name: Optional[str] = None,
+        collection_name: str | None = None,
         vector_size: int = 512,
         recreate: bool = False,
     ) -> bool:
@@ -133,7 +133,7 @@ class QdrantDBClient:
             logger.error(f"Error creating collection '{name}': {e}")
             return False
 
-    def get_collection_info(self, collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_collection_info(self, collection_name: str | None = None) -> dict[str, Any] | None:
         """Return count and status metadata for a collection.
 
         Args:
@@ -160,7 +160,7 @@ class QdrantDBClient:
             logger.error(f"Error getting info for collection '{name}': {e}")
             return None
 
-    def delete_collection(self, collection_name: Optional[str] = None) -> bool:
+    def delete_collection(self, collection_name: str | None = None) -> bool:
         """Delete a Qdrant collection.
 
         Args:
@@ -185,9 +185,9 @@ class QdrantDBClient:
     def upsert_images(
         self,
         embeddings: np.ndarray,
-        metadata_list: List[Dict[str, Any]],
-        ids: Optional[List[Union[str, int]]] = None,
-        collection_name: Optional[str] = None,
+        metadata_list: list[dict[str, Any]],
+        ids: list[str | int] | None = None,
+        collection_name: str | None = None,
     ) -> bool:
         """Upsert image embeddings with payload metadata into Qdrant.
 
@@ -214,7 +214,7 @@ class QdrantDBClient:
         if ids is not None and len(ids) != len(embeddings):
             raise ValueError("IDs and embeddings lists must have the same length.")
 
-        points: List[models.PointStruct] = []
+        points: list[models.PointStruct] = []
         for i in range(len(embeddings)):
             point_id = ids[i] if ids is not None else str(uuid.uuid4())
             points.append(
@@ -237,10 +237,10 @@ class QdrantDBClient:
     def search_similar(
         self,
         query_vector: np.ndarray,
-        top_k: Optional[int] = None,
-        collection_name: Optional[str] = None,
-        filter_dict: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        top_k: int | None = None,
+        collection_name: str | None = None,
+        filter_dict: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """Search for the *top_k* most similar vectors by cosine distance.
 
         Args:
@@ -260,7 +260,7 @@ class QdrantDBClient:
         query_list = query_vector.tolist() if isinstance(query_vector, np.ndarray) else query_vector
 
         # Construct payload filters if provided
-        query_filter: Optional[models.Filter] = None
+        query_filter: models.Filter | None = None
         if filter_dict:
             filter_conditions = [
                 models.FieldCondition(key=key, match=models.MatchValue(value=val))
@@ -292,10 +292,10 @@ class QdrantDBClient:
     async def search_similar_async(
         self,
         query_vector: np.ndarray,
-        top_k: Optional[int] = None,
-        collection_name: Optional[str] = None,
-        filter_dict: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        top_k: int | None = None,
+        collection_name: str | None = None,
+        filter_dict: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """Non-blocking version of :meth:`search_similar`.
 
         Offloads the synchronous Qdrant SDK call to a worker thread.
@@ -304,7 +304,7 @@ class QdrantDBClient:
             self.search_similar, query_vector, top_k, collection_name, filter_dict
         )
 
-    async def get_collection_info_async(self, collection_name: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    async def get_collection_info_async(self, collection_name: str | None = None) -> dict[str, Any] | None:
         """Non-blocking version of :meth:`get_collection_info`."""
         return await asyncio.to_thread(self.get_collection_info, collection_name)
 

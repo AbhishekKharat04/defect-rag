@@ -11,7 +11,6 @@ import logging.config
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Cache redirection (must run before any HF / torch import)
@@ -33,8 +32,8 @@ if PACKAGES_DIR.exists() and str(PACKAGES_DIR) not in sys.path:
 # ---------------------------------------------------------------------------
 # Settings
 # ---------------------------------------------------------------------------
-from pydantic_settings import BaseSettings, SettingsConfigDict
 import torch
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #: Semantic version of the application, surfaced in /health and logs.
 VERSION: str = "1.0.0"
@@ -108,9 +107,9 @@ class _JSONFormatter(logging.Formatter):
     optional *request_id* propagated via :class:`logging.LogRecord` extras.
     """
 
-    def format(self, record: logging.LogRecord) -> str:  # noqa: D401
-        import json
+    def format(self, record: logging.LogRecord) -> str:
         import datetime
+        import json
 
         log_entry = {
             "timestamp": datetime.datetime.fromtimestamp(
@@ -122,7 +121,7 @@ class _JSONFormatter(logging.Formatter):
         }
 
         # Attach request-ID when set by the middleware
-        request_id: Optional[str] = getattr(record, "request_id", None)
+        request_id: str | None = getattr(record, "request_id", None)
         if request_id:
             log_entry["request_id"] = request_id
 
@@ -132,7 +131,7 @@ class _JSONFormatter(logging.Formatter):
         return json.dumps(log_entry, ensure_ascii=False)
 
 
-def setup_logging(level: Optional[str] = None) -> None:
+def setup_logging(level: str | None = None) -> None:
     """Configure the root logger with structured JSON output.
 
     Args:

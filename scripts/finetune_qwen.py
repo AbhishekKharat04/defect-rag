@@ -1,19 +1,18 @@
 import argparse
 import json
 import logging
-import os
-from pathlib import Path
-from PIL import Image
+
 import torch
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from PIL import Image
 from torch.utils.data import Dataset
 from transformers import (
-    Qwen2_5_VLForConditionalGeneration,
     AutoProcessor,
     BitsAndBytesConfig,
+    Qwen2_5_VLForConditionalGeneration,
     Trainer,
-    TrainingArguments
+    TrainingArguments,
 )
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
 # Logger setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -21,6 +20,7 @@ logger = logging.getLogger("finetune")
 
 # Redirect cache dirs (imported settings automatically redirects them)
 from src.config import settings
+
 
 class QwenVLDataset(Dataset):
     """Custom PyTorch dataset to load and tokenize Qwen2.5-VL multi-modal dialogue data."""
@@ -32,7 +32,7 @@ class QwenVLDataset(Dataset):
             processor: Hugging Face QwenAutoProcessor.
         """
         logger.info(f"Loading finetune dataset from: {data_path}")
-        with open(data_path, "r", encoding="utf-8") as f:
+        with open(data_path, encoding="utf-8") as f:
             self.data = json.load(f)
         self.processor = processor
 
@@ -57,7 +57,7 @@ class QwenVLDataset(Dataset):
         for msg in conversations:
             role = msg["from"]
             val = msg["value"]
-            
+
             # Map role names ('user' -> 'user', 'assistant' -> 'assistant')
             # The prompt value contains <image> placeholder, Qwen VL processor expects specific tag processing
             messages.append({
@@ -68,7 +68,7 @@ class QwenVLDataset(Dataset):
         # Apply processor formatting (chat template + multi-modal preprocessing)
         try:
             text_prompt = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
-            
+
             # The processor automatically handles the image content list conversion when we pass images
             inputs = self.processor(
                 text=[text_prompt],
@@ -76,13 +76,13 @@ class QwenVLDataset(Dataset):
                 padding=True,
                 return_tensors="pt"
             )
-            
+
             # Remove batch dimension
             item_inputs = {k: v[0] for k, v in inputs.items()}
-            
+
             # Set labels equal to input_ids for standard causal auto-regressive language modeling
             item_inputs["labels"] = item_inputs["input_ids"].clone()
-            
+
             return item_inputs
         except Exception as e:
             logger.error(f"Error processing item index {idx}: {e}")
@@ -108,7 +108,7 @@ def main():
 
     # 2. BitsAndBytes 4-bit configuration (only if GPU is available and CPU mode is not forced)
     use_quantization = torch.cuda.is_available() and not args.cpu
-    
+
     if use_quantization:
         logger.info("Initializing 4-bit BitsAndBytes quantization configuration...")
         bnb_config = BitsAndBytesConfig(
@@ -124,7 +124,7 @@ def main():
     # 3. Load Model
     logger.info(f"Loading base model: {settings.QWEN_MODEL_NAME}")
     device_map = "auto" if torch.cuda.is_available() and not args.cpu else None
-    
+
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         settings.QWEN_MODEL_NAME,
         quantization_config=bnb_config,
@@ -170,7 +170,7 @@ def main():
     # Custom data collator to handle sequence packaging and padding for multimodal tensors
     def col_fn(features):
         batch = {}
-        for k in features[0].keys():
+        for k in features[0]:
             # Pad sequences
             tensors = [f[k] for f in features]
             if isinstance(tensors[0], torch.Tensor):
