@@ -1,0 +1,34 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies needed for OpenCV, Pillow, and other build essentials
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code and scripts
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+
+# Create directories for data and uploads
+RUN mkdir -p data/uploads logs
+
+# Expose port 8000
+EXPOSE 8000
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV QDRANT_HOST=qdrant
+ENV QDRANT_PORT=6333
+ENV BACKEND_URL=http://localhost:8000
+
+# Run FastAPI app
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

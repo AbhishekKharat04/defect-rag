@@ -1,0 +1,22 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ ./src/
+
+# Expose port 7860 for Gradio
+EXPOSE 7860
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV BACKEND_URL=http://api:8000
+ENV GRADIO_SERVER_NAME=0.0.0.0
+ENV GRADIO_SERVER_PORT=7860
+
+# Run Gradio app
+CMD ["python", "src/frontend/app.py"]

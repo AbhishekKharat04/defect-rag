@@ -1,0 +1,113 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "defect-rag"
+version = "1.0.0"
+description = "Production-grade Vision-Language RAG system for industrial defect detection using CLIP retrieval and Qwen2.5-VL."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Rishab Khar"}
+]
+keywords = [
+    "vision-language-model",
+    "RAG",
+    "retrieval-augmented-generation",
+    "defect-detection",
+    "CLIP",
+    "Qwen2.5-VL",
+    "computer-vision",
+    "quality-control",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "qdrant-client>=1.7.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "transformers>=4.49.0",
+    "accelerate>=0.21.0",
+    "gradio>=4.0.0",
+    "pillow>=9.5.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "numpy>=1.24.0",
+    "python-multipart>=0.0.6",
+    "sentence-transformers>=2.2.2",
+    "qwen-vl-utils>=0.0.8",
+    "mlflow>=2.0.0",
+    "peft>=0.7.0",
+    "trl>=0.7.1",
+    "bitsandbytes>=0.41.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "ruff>=0.4.0",
+    "mypy>=1.8.0",
+]
+
+[project.scripts]
+defect-rag = "src.cli:main"
+
+[project.urls]
+Repository = "https://github.com/rishabkhar/defect-rag"
+Documentation = "https://github.com/rishabkhar/defect-rag/blob/main/README.md"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults (needed for FastAPI Depends)
+    "SIM108", # use ternary operator (sometimes less readable)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
